@@ -5,7 +5,7 @@ from collections import Counter
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 
-def load_words(filename):
+def load_words(filename: str):
     """Load words from a file into a list, removing words with numbers and special characters.
     Converts all words to uppercase."""
     valid_word_pattern = re.compile(r'^[a-zA-Z]+$')  # Only letters allowed (no digits or special characters)
@@ -13,15 +13,15 @@ def load_words(filename):
     with open(filename, 'r', encoding='utf-8') as file:
         return [line.strip().upper() for line in file if valid_word_pattern.match(line.strip())]
 
-def exclude_letters(words, letters):
+def exclude_letters(words: list[str], letters: str):
     """Exclude words that contain any of the given letters."""
     return [word for word in words if not any(letter in word for letter in letters)]
 
-def filter_by_length(words, exact_length):
+def filter_by_length(words: list[str], exact_length: int):
     """Keep only words that have the exact specified length."""
     return [word for word in words if len(word) == exact_length]
 
-def contains_letters(words, substring):
+def contains_letters(words: list[str], substring: str):
     """Keep only words that contain all letters in the substring, considering duplicate letters as one letter."""
     substring_counter = Counter(substring)  # Count occurrences of each letter in substring
     
@@ -35,7 +35,7 @@ def contains_letters(words, substring):
     
     return filtered_words
 
-def filter_by_pattern(words, pattern):
+def filter_by_pattern(words: list[str], pattern: str):
     """Keep only words that match the given pattern with fixed letters and wildcards. Wildcards is represented by the '?' character.
        Each '?' in the pattern can match any single character, while fixed letters must match the corresponding position in the word."""
     regex_pattern = pattern.replace('?', '.')
