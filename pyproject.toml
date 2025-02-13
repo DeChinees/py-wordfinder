@@ -1,13 +1,19 @@
-[tool.poetry]
+[project]
 name = "py-wordfinder"
-version = "0.0.1"
+version = "0.1.0"
 description = "A simple CLI application for word filtering"
-authors = ["Your Name <your.email@example.com>"]
-license = "MIT"
-
-[tool.poetry.dependencies]
-python = "^3.13"
+authors = [
+    {name = "DeChinees",email = "justanotheraddress@gmail.com"}
+]
+license = {text = "MIT"}
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = []
 
 [build-system]
-requires = ["poetry-core>=1.0.0"]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+[[tool.poetry.packages]]
+ from = "src"
+ include = "wordfinder"
