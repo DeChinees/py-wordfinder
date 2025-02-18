@@ -1,7 +1,7 @@
-from sqlmodel import SQLModel, Field, Session, create_engine, select, inspect
-import argparse
-import logging
-import os, sys, re
+from sqlmodel import SQLModel, Field, Session, create_engine, select, inspect, text
+from sqlalchemy.orm import declarative_base
+from sqlalchemy import Column, Integer, String
+import os, sys, re, logging, argparse
 from wordfinder import exclude_letters, filter_by_length, contains_letters, filter_by_pattern
 
 # Configure logging
@@ -10,73 +10,81 @@ logging.basicConfig(level=logging.INFO)
 # Database setup
 SQLITE_FILE_NAME = "words.db"
 SQLITE_URL = f"sqlite:///{SQLITE_FILE_NAME}"
-engine = create_engine(SQLITE_URL, echo=True)
+engine = create_engine(SQLITE_URL, echo=False)
 
-class Word(SQLModel, table=True):
-    """Database table for storing words."""
+
+class BaseWordModel(SQLModel, table=True):
+    """Base database table for storing words."""
     id: int = Field(default=None, primary_key=True)
     word: str = Field(index=True)
 
+
+def set_word_model_table_name(table_name: str):
+    """Create a dynamic Word model class with a specified table name."""
+    Base = declarative_base(metadata=SQLModel.metadata)
+
+    class DynamicWordModel(Base):
+        __tablename__ = table_name
+        __table_args__ = {'extend_existing': True}
+        id = Column(Integer, primary_key=True)
+        word = Column(String, index=True)
+
+    return DynamicWordModel
+
+
 def fill_database(filename: str, table_name: str):
-    """Read file and fill the database table with words and removing words with numbers and special characters.
-    Converts all words to uppercase and removes duplicates.
-    """
-    # Dynamically set the table name
-    Word.__tablename__ = table_name
+    """Fill database, dynamically creating/repopulating table."""
+    DynamicWord = set_word_model_table_name(table_name)  # Create a dynamic Word model class
+    DynamicWord.__table__.create(engine, checkfirst=True)  # Create the table if it doesn't exist
 
-    # Create database and tables
-    SQLModel.metadata.create_all(engine)
-
-    # Check if the table exists and drop it if it does
     with Session(engine) as session:
-        if inspect(engine).has_table(table_name):
-            session.exec(f"DROP TABLE {table_name}")
+        if table_name in inspect(engine).get_table_names():
+            session.exec(text(f"DELETE FROM {table_name}"))
             session.commit()
 
-    # Create the table again
-    SQLModel.metadata.create_all(engine)
+        valid_word_pattern = re.compile(r'^[a-zA-Z]+$')
+        words_to_add = {}
 
-    # Load words from the file
-    valid_word_pattern = re.compile(r'^[a-zA-Z]+$')
-    with open(filename, 'r', encoding='utf-8') as file:
-        words = [line.strip().upper() for line in file if valid_word_pattern.match(line.strip())]
+        with open(filename, 'r', encoding='utf-8') as file:
+            for line in file:
+                word = line.strip().upper()
+                if valid_word_pattern.match(word) and word not in words_to_add:
+                    words_to_add[word] = DynamicWord(word=word)  # Use DynamicWord
 
-    # Insert words into the table
-    with Session(engine) as session:
-        for word in set(words):
-            db_word = Word(word=word)
-            session.add(db_word)
+        session.add_all(words_to_add.values())  # Add the DynamicWord objects
         session.commit()
 
     print(f"Database table '{table_name}' has been filled with words from '{filename}'.")
 
+
 def check_database_and_table(table_name: str):
-    """Check if the database and table exist"""
+    """Check if the database file and table exist, and whether the table contains data."""
+    DynamicWord = set_word_model_table_name(table_name)  # Set the table name for the Word model
     try:
-        # Check if the database file exists
-        if not os.path.exists(SQLITE_FILE_NAME):
-            raise Exception("Database does not exist.")
-
         # Check if the table exists
-        with Session(engine) as session:
-            table_exists = engine.has_table(table_name)
-            if not table_exists:
-                raise Exception(f"Table {table_name} does not exist.")
+        inspector = inspect(engine)  # Use SQLAlchemy's inspector
+        if table_name not in inspector.get_table_names():
+            raise ValueError(f"Table '{table_name}' does not exist.")
 
-            # Check if the table has some data
-            result = session.exec(select(Word).where(Word.__tablename__ == table_name)).first()
+        # Check if the table has data
+        with Session(engine) as session:
+            result = session.exec(select(DynamicWord).limit(1)).first()  # Check for at least one record
             if not result:
-                raise Exception(f"Table {table_name} does not exist or has no data.")
-    except Exception as e:
-        print(e)
+                raise ValueError(f"Table '{table_name}' exists but contains no data.")
+
+    except (FileNotFoundError, ValueError) as e:
+        print(f"Error: {e}")
         print("Database and/or table can be populated by providing command arguments --filename --language")
         sys.exit(1)
 
+
 def load_words(language: str, length: int):
     """Load words from the database table named `language` and return them as a list."""
+    DynamicWord = set_word_model_table_name(language)  # Set the table name for the Word model
     with Session(engine) as session:
-        words = session.exec(select(Word.word).where(Word.__tablename__ == language)).all()
+        words = session.exec(select(DynamicWord.word).where(DynamicWord.__tablename__ == language)).all()
         return [word for word in words if len(word) == length]
+
 
 def help():
     """Display the available commands and their descriptions."""
@@ -85,7 +93,6 @@ def help():
         "length <number>": filter_by_length.__doc__,
         "contains <substring>": contains_letters.__doc__,
         "pattern <pattern>": filter_by_pattern.__doc__,
-        "save <filename>": write_words.__doc__,
         "list": "Display the current list of words.",
         "reset": "Reset the words to the original list from the file.",
         "exit": "Exit the program."
@@ -102,6 +109,7 @@ def help():
 
     print(help_text)
 
+
 def main():
     parser = argparse.ArgumentParser(description="Word Finder CLI")
     parser.add_argument('-f', '--filename', nargs='?', default='', type=str,  help="The filename to load words from")
@@ -109,13 +117,17 @@ def main():
     parser.add_argument('-L', '--language', nargs='?', default='nl', type=lambda s: s.lower(), help="Language of the wordlist")
     args = parser.parse_args()
 
-    if args.filename:
-        fill_database(args.filename, args.filename)
+    if not os.path.exists(SQLITE_FILE_NAME) and not args.filename:
+        print(f"Error: Database {SQLITE_FILE_NAME} file does not exist.")
+        print(f"Database can be populated by providing command arguments --filename --language")
+        sys.exit(1)
+    elif args.filename:
+        fill_database(args.filename, args.language)
 
     check_database_and_table(args.language)
 
     # Read the words from the file and filter out words that are not 5 characters long
-    words = load_words(args.filename, args.language, args.length)
+    words = load_words(args.language, args.length)
 
     try:
         while True:
@@ -143,11 +155,6 @@ def main():
                 _, pattern = command.split(" ", 1)
                 words = filter_by_pattern(words, pattern.upper())
                 print(f"Updated words: {words}")
-
-            elif command.startswith("save "):
-                _, filename = command.split(" ", 1)
-                words = load_words(args.filename)
-                write_words(words, filename)
 
             elif command == "list":
                 print(f"Words: {words}")
