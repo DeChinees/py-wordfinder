@@ -2,7 +2,7 @@ from sqlmodel import SQLModel, Field, Session, create_engine, select, inspect, t
 from sqlalchemy.orm import declarative_base
 from sqlalchemy import Column, Integer, String
 import os, sys, re, logging, argparse
-from wordfinder import exclude_letters, filter_by_length, contains_letters, filter_by_pattern
+from wordfinder import WordFilter
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -128,33 +128,33 @@ def main():
 
     # Read the words from the file and filter out words that are not 5 characters long
     words = load_words(args.language, args.length)
+    word_filter = WordFilter()
 
     try:
         while True:
+            print(f"Excluded letters: {word_filter.excluded_letters}")
+            print(f"Contains letters: {word_filter.contained_letters}")
+            print(f"Pattern: {word_filter.pattern}")
             command = input("Enter command: ").strip().lower()
 
             if command.startswith("exclude "):
                 _, letters = command.split(" ", 1)
-                words = exclude_letters(words, letters.upper())
-                print(f"Updated words: {words}")
+                words = word_filter.exclude_letters(words, letters.upper())
 
             elif command.startswith("length "):
                 _, length = command.split(" ", 1)
                 if length.isdigit():
-                    words = filter_by_length(words, int(length))
-                    print(f"Updated words: {words}")
+                    words = word_filter.by_length(words, int(length))
                 else:
                     print("Error: Length must be a number.")
 
             elif command.startswith("contains "):
                 _, substring = command.split(" ", 1)
-                words = contains_letters(words, substring.upper())
-                print(f"Updated words: {words}")
+                words = word_filter.contains_letters(words, substring.upper())
 
             elif command.startswith("pattern "):
                 _, pattern = command.split(" ", 1)
-                words = filter_by_pattern(words, pattern.upper())
-                print(f"Updated words: {words}")
+                words = word_filter.by_pattern(words, pattern.upper())
 
             elif command == "list":
                 print(f"Words: {words}")
