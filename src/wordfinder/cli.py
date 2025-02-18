@@ -1,32 +1,82 @@
+from sqlmodel import SQLModel, Field, Session, create_engine, select, inspect
 import argparse
 import logging
-import re
+import os, sys, re
 from wordfinder import exclude_letters, filter_by_length, contains_letters, filter_by_pattern
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 
-def load_words(filename: str):
-    """Load words from a file into a list, removing words with numbers and special characters.
+# Database setup
+SQLITE_FILE_NAME = "words.db"
+SQLITE_URL = f"sqlite:///{SQLITE_FILE_NAME}"
+engine = create_engine(SQLITE_URL, echo=True)
+
+class Word(SQLModel, table=True):
+    """Database table for storing words."""
+    id: int = Field(default=None, primary_key=True)
+    word: str = Field(index=True)
+
+def fill_database(filename: str, table_name: str):
+    """Read file and fill the database table with words and removing words with numbers and special characters.
     Converts all words to uppercase and removes duplicates.
     """
-    valid_word_pattern = re.compile(r'^[a-zA-Z]+$')  # Only letters allowed (no digits or special characters)
+    # Dynamically set the table name
+    Word.__tablename__ = table_name
 
+    # Create database and tables
+    SQLModel.metadata.create_all(engine)
+
+    # Check if the table exists and drop it if it does
+    with Session(engine) as session:
+        if inspect(engine).has_table(table_name):
+            session.exec(f"DROP TABLE {table_name}")
+            session.commit()
+
+    # Create the table again
+    SQLModel.metadata.create_all(engine)
+
+    # Load words from the file
+    valid_word_pattern = re.compile(r'^[a-zA-Z]+$')
     with open(filename, 'r', encoding='utf-8') as file:
         words = [line.strip().upper() for line in file if valid_word_pattern.match(line.strip())]
 
-    return list(set(words))
+    # Insert words into the table
+    with Session(engine) as session:
+        for word in set(words):
+            db_word = Word(word=word)
+            session.add(db_word)
+        session.commit()
 
-def write_words(words: list[str], filename: str):
-    """Save the list of words to the specified file.
-    The list will be in uppercase and removed of words with numbers and special characters.
-    """
+    print(f"Database table '{table_name}' has been filled with words from '{filename}'.")
+
+def check_database_and_table(table_name: str):
+    """Check if the database and table exist"""
     try:
-        with open(filename, 'w', encoding='utf-8') as file:
-            file.write("\n".join(words))
-        print(f"File has been written successfully: {filename}")
+        # Check if the database file exists
+        if not os.path.exists(SQLITE_FILE_NAME):
+            raise Exception("Database does not exist.")
+
+        # Check if the table exists
+        with Session(engine) as session:
+            table_exists = engine.has_table(table_name)
+            if not table_exists:
+                raise Exception(f"Table {table_name} does not exist.")
+
+            # Check if the table has some data
+            result = session.exec(select(Word).where(Word.__tablename__ == table_name)).first()
+            if not result:
+                raise Exception(f"Table {table_name} does not exist or has no data.")
     except Exception as e:
-        print(f"An error occurred while writing to the file: {e}")
+        print(e)
+        print("Database and/or table can be populated by providing command arguments --filename --language")
+        sys.exit(1)
+
+def load_words(language: str, length: int):
+    """Load words from the database table named `language` and return them as a list."""
+    with Session(engine) as session:
+        words = session.exec(select(Word.word).where(Word.__tablename__ == language)).all()
+        return [word for word in words if len(word) == length]
 
 def help():
     """Display the available commands and their descriptions."""
@@ -54,13 +104,18 @@ def help():
 
 def main():
     parser = argparse.ArgumentParser(description="Word Finder CLI")
-    parser.add_argument('-f', '--filename', nargs='?', default='nl-wordlist.txt', type=str,  help="The filename to load words from")
+    parser.add_argument('-f', '--filename', nargs='?', default='', type=str,  help="The filename to load words from")
     parser.add_argument( '-l', '--length', nargs='?', default=5, type=int, help="The length of the words to filter")
+    parser.add_argument('-L', '--language', nargs='?', default='nl', type=lambda s: s.lower(), help="Language of the wordlist")
     args = parser.parse_args()
 
+    if args.filename:
+        fill_database(args.filename, args.filename)
+
+    check_database_and_table(args.language)
+
     # Read the words from the file and filter out words that are not 5 characters long
-    words = load_words(args.filename)
-    words = filter_by_length(words, args.length)
+    words = load_words(args.filename, args.language, args.length)
 
     try:
         while True:
