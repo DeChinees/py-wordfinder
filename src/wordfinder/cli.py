@@ -15,7 +15,7 @@ logging.basicConfig(level=logging.INFO)
 SQLITE_FILE_NAME = "words.db"
 SQLITE_URL = f"sqlite:///{SQLITE_FILE_NAME}"
 engine = create_engine(SQLITE_URL, echo=False)
-
+NAMES = "names.txt"
 
 class BaseWordModel(SQLModel, table=True):
     """Base database table for storing words."""
@@ -41,6 +41,11 @@ def fill_database(filename: str, table_name: str):
     DynamicWord = set_word_model_table_name(table_name)  # Create a dynamic Word model class
     DynamicWord.__table__.create(engine, checkfirst=True)  # Create the table if it doesn't exist
 
+    # Load names from names.txt into a set
+    names_file = os.path.join(os.path.dirname(__file__), 'dict', NAMES)
+    with open(names_file, 'r', encoding='utf-8') as file:
+        names_set = {line.strip().upper() for line in file}
+
     with Session(engine) as session:
         if table_name in inspect(engine).get_table_names():
             session.exec(text(f"DELETE FROM {table_name}"))
@@ -52,14 +57,13 @@ def fill_database(filename: str, table_name: str):
         with open(filename, 'r', encoding='utf-8') as file:
             for line in file:
                 word = line.strip().upper()
-                if valid_word_pattern.match(word) and word not in words_to_add:
+                if valid_word_pattern.match(word) and word not in words_to_add and word not in names_set:
                     words_to_add[word] = DynamicWord(word=word)  # Use DynamicWord
 
         session.add_all(words_to_add.values())  # Add the DynamicWord objects
         session.commit()
 
-    print(f"Database table '{table_name}' has been filled with words from '{filename}'.")
-
+    print(f"Database table '{table_name}' has been filled with words from '{filename}', excluding names from 'names.txt'.")
 
 def check_database_and_table(table_name: str):
     """Check if the database file and table exist, and whether the table contains data."""
@@ -84,6 +88,7 @@ def check_database_and_table(table_name: str):
 
 def load_words(language: str, length: int):
     """Load words from the database table named `language` and return them as a list."""
+    print(f"Loading words of length {length} from the language '{language}'.")
     DynamicWord = set_word_model_table_name(language)  # Set the table name for the Word model
     with Session(engine) as session:
         words = session.exec(select(DynamicWord.word).where(DynamicWord.__tablename__ == language)).all()
