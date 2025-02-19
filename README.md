@@ -29,26 +29,42 @@ Python version of Wordfinder
 
 ### Command Line Interface (CLI)
 
-The CLI allows you to load, filter, and manipulate word lists.
+The CLI allows you to add new list, filter, and manipulate word lists.
+The default wordlist is Dutch (NL) and can be found in the `data` directory. The data is stored in a SQLite database.
 
-#### Commands
+To start the CLI with the default Dutch words and filter words of a length of 5:
+```sh
+python src/wordfinder/cli.py
+```
+
+To start the CLI with English words and only have words with a length of 10:
+```sh
+python src/wordfinder/cli.py -lang EN -l 10
+```
+To list available languages:
+```sh
+python src/wordfinder/cli.py -list
+```
+#### Command Line Arguments
+
+- \`-f, --filename <filename>\`: Specify the filename to load the word list from a text file to the database.
+- \`-lang, --language <language>\`: Specify the language of the word list (e.g., en, es, nl).
+- \`-l, --length <number>\`: Filter words by the specified length. Default value is 5. Set the value 0, to disable length filter.
+- \`-list, --list-languages\`: List available languages.
+- \`-h, --help\`: Display the help message.
+
+
+### Commands
 
 - `exclude <letters>`: Exclude words containing any of the specified letters.
+- `include <substring>`: Filter words containing the specified substring.
 - `length <number>`: Filter words by the specified length.
-- `contains <substring>`: Filter words containing the specified substring.
 - `pattern <pattern>`: Filter words matching the specified pattern.
-- `save <filename>`: Save the current list of words to the specified file.
 - `list`: Display the current list of words.
 - `reset`: Reset the words to the original list from the file.
 - `help`: Display the available commands and their descriptions.
 - `exit`: Exit the program.
 
-#### Example
-
-To start the CLI with the default word list and filter words of length 5:
-```sh
-python src/wordfinder/cli.py
-```
 
 # FastAPI
 

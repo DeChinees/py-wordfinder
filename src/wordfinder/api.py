@@ -1,123 +1,98 @@
-from fastapi import FastAPI, Depends, Request
-from fastapi.responses import HTMLResponse
-from fastapi.middleware.sessions import SessionMiddleware
-from sqlmodel import SQLModel, create_engine, Field, Session, select
+from fastapi import FastAPI, Request
+from starlette.middleware.sessions import SessionMiddleware
+from sqlmodel import create_engine, Session, text
 from uuid import uuid4
+import os
+import time
 
-from wordfinder import exclude_letters, filter_by_length, contains_letters, filter_by_pattern
+# Database setup
+SQLITE_FILE_NAME = os.path.join(os.path.dirname(__file__), 'data', "words.db")
+SQLITE_URL = f"sqlite:///{SQLITE_FILE_NAME}"
+engine = create_engine(SQLITE_URL, echo=False)
 
 app = FastAPI()
-app.add_middleware(SessionMiddleware, secret_key=str(uuid4()))
+app.add_middleware(SessionMiddleware, secret_key=str(uuid4()), max_age=600)
+
+# In-memory session storage (expires in 10 min)
+SESSION_STORE = {}
+
+def get_session(request: Request):
+    session_id = request.session.get("session_id")
+    if not session_id:
+        session_id = str(uuid4())
+        request.session["session_id"] = session_id
+        SESSION_STORE[session_id] = {"created": time.time(), "words": []}
+    return session_id
 
 @app.get("/")
 async def read_root():
     return {"message": "Welcome to WordFinder!"}
 
-@app.get("/exclude_letters")
-def exclude_letters_endpoint(words: List[str] = Query(...), letters: str = Query(...)):
-    words_list = words.split(",")
-    result = exclude_letters(words_list, letters)
-    return {"result": result}
-
-@app.get("/filter_by_length")
-def filter_by_length_endpoint(words: List[str] = Query(...), exact_length: int = Query(...)):
-    words_list = words.split(",")
-    result = filter_by_length(words_list, exact_length)
-    return {"result": result}
-
-@app.get("/contains_letters")
-def contains_letters_endpoint(words: List[str] = Query(...), substring: str = Query(...)):
-    words_list = words.split(",")
-    result = contains_letters(words_list, substring)
-    return {"result": result}
-
-@app.get("/filter_by_pattern")
-def filter_by_pattern_endpoint(words: List[str] = Query(...), pattern: str = Query(...)):
-    words_list = words.split(",")
-    result = filter_by_pattern(words_list, pattern)
-    return {"result": result}
-
-
-
-
-from fastapi import FastAPI
-from fastapi.middleware.sessions import SessionMiddleware
-from uuid import uuid4
-
-app = FastAPI()
-app.add_middleware(SessionMiddleware, secret_key=str(uuid4()))  # Important for session management
-
-# Database setup
-SQLITE_FILE_NAME = "words.db"
-SQLITE_URL = f"sqlite:///{SQLITE_FILE_NAME}"
-
-engine = create_engine(SQLITE_URL, echo=False)  # echo=False for production
-
-class Word(SQLModel, table=True):
-    id: int = Field(default=None, primary_key=True)
-    word: str = Field(index=True)  # Index for faster searching
-
-def create_db_and_tables():
-    SQLModel.metadata.create_all(engine)
-
-@app.on_event("startup")
-async def startup_event():
-    create_db_and_tables()
-    # Here you would typically load your 5MB word list into the database.
-    # For demonstration, let's add a few words:
-    with Session(engine) as session:
-        if session.exec(select(Word)).first() is None: #check if database is empty
-            words = ["apple", "banana", "orange", "grape", "kiwi", "apricot", "avocado", "blueberry", "cherry", "cranberry"] #sample words
-            for word in words:
-                db_word = Word(word=word)
-                session.add(db_word)
-            session.commit()
-
-
-
-def get_session():
-    with Session(engine) as session:
-        yield session
-
-@app.get("/", response_class=HTMLResponse)
-async def read_root():
-    return """
-    <html>
-    <head><title>Word Search</title></head>
-    <body>
-    <h1>Word Search</h1>
-    <form method="GET" action="/search">
-        <input type="text" name="q" placeholder="Enter word">
-        <button type="submit">Search</button>
-    </form>
-    </body>
-    </html>
+@app.get("/search/")
+async def search_words(
+    request: Request,
+    lang: str,
+    length: int = None,
+    exclude: str = "",
+    include: str = "",
+    pattern: str = ""
+):
+    """Search for words in the database based on filters.
+        - lang: Language to search for (NL, EN)
+        - length: Word length
+        - exclude: Exclude letters
+        - include: Include letters
+        - pattern: Word pattern (e.g., "A__LE")
+        - word_count: Maximum number of words to return
     """
+    from .wordfinder import WordFilter
+    session_id = get_session(request)
+    word_filter = WordFilter()
 
-@app.get("/search")
-async def search_words(request: Request, q: str, session: Session = Depends(get_session)):
-    user_id = request.session.get("user_id")
-    if not user_id:
-        user_id = str(uuid4())
-        request.session["user_id"] = user_id
+    # Validate the requested language
+    valid_tables = ["NL", "EN"]  # Extend this if you add more languages
+    if lang.upper() not in valid_tables:
+        return {"error": "Invalid language. Choose from: " + ", ".join(valid_tables)}
 
-    # Check for previous results in the session
-    previous_results = request.session.get(f"results_{user_id}", [])
+    # Dynamically select table based on language
+    table_name = lang.upper()
+    with Session(engine) as session:
+        #query = f"SELECT word FROM {table_name}"  # Unsafe, better with SQLModel reflection
+        result = session.exec(text(f"SELECT word FROM {table_name}")).all()
+        words = [row[0] for row in result]
 
-    if q and q not in previous_results:  # New search term
-        results = session.exec(select(Word).where(Word.word.startswith(q))).all()
-        results_words = [word.word for word in results]
-        request.session[f"results_{user_id}"] = results_words #store results in session
-    else: # q is empty or same as previous search
-        results_words = previous_results
+    # Apply filters
+    if length:
+        words = word_filter.by_length(words, length)
+    if exclude:
+        words = word_filter.exclude_letters(words, exclude.upper())
+    if include:
+        words = word_filter.include_letters(words, include.upper())
+    if pattern:
+        words = word_filter.by_pattern(words, pattern.upper())
 
-    return {"results": results_words} # return results, even if empty
+    # Store results in session
+    SESSION_STORE[session_id]["words"] = words
+    SESSION_STORE[session_id]["created"] = time.time()
+
+    return {"session_id": session_id,
+            "words": words,
+            "language": table_name,
+            "included_letters": word_filter.included_letters,
+            "excluded_letters": word_filter.excluded_letters,
+            "pattern": word_filter.pattern,
+            "count": word_filter.word_count}
 
 
+@app.get("/results/")
+async def get_results(request: Request):
+    session_id = get_session(request)
+    if session_id in SESSION_STORE:
+        return {"session_id": session_id, "words": SESSION_STORE[session_id]["words"]}
+    return {"message": "No active session."}
 
-@app.on_event("shutdown")
-async def shutdown_event():
-    # Clean up user-specific data (if needed).
-    # In this example, sessions are handled by the middleware, so no database cleanup is required.
-    # If you were storing user-specific data in the database, you would clean it up here.
-    pass
+@app.get("/reset/")
+async def reset_session(request: Request):
+    session_id = get_session(request)
+    SESSION_STORE[session_id] = {"created": time.time(), "words": []}
+    return {"message": "Session reset."}

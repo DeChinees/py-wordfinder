@@ -1,2 +1,1 @@
-from .wordfinder import filter_by_length
-from wordfinder.cli import load_words
+#from wordfinder.word_filter import WordFilter
