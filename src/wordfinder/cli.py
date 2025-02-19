@@ -1,4 +1,3 @@
-from sqlalchemy.sql.traversals import HasCopyInternals
 from sqlmodel import SQLModel, Field, Session, create_engine, select, inspect, text
 from sqlalchemy.orm import declarative_base
 from sqlalchemy import Column, Integer, String
@@ -202,7 +201,7 @@ def main():
             print(f"Excluded letters: {''.join(sorted(word_filter.excluded_letters))}")
             print(f"Included letters: {''.join(sorted(word_filter.included_letters))}")
             print(f"Pattern e.g. d??my: {word_filter.pattern}")
-            print(f"Hint: Type 'help' to see the list of available commands.")
+            print("Hint: Type 'help' to see the list of available commands.")
             command = input("Enter command: ").strip().lower()
 
             if command.startswith("exclude "):
