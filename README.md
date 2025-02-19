@@ -35,15 +35,27 @@ The default wordlist is Dutch (NL) and can be found in the `data` directory. The
 To start the CLI with the default Dutch words and filter words of a length of 5:
 ```sh
 python src/wordfinder/cli.py
+
+## or ## 
+
+poetry run python src/wordfinder/cli.py
 ```
 
 To start the CLI with English words and only have words with a length of 10:
 ```sh
 python src/wordfinder/cli.py -lang EN -l 10
+
+## or ## 
+
+poetry run python src/wordfinder/cli.py -lang EN -l 10 
 ```
 To list available languages:
 ```sh
 python src/wordfinder/cli.py -list
+
+## or ## 
+
+poetry run python src/wordfinder/cli.py -list
 ```
 #### Command Line Arguments
 
