@@ -1,10 +1,9 @@
-from fastapi import FastAPI, Depends, HTTPException, Request
+from fastapi import FastAPI, Depends, Request
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.sessions import SessionMiddleware
 from sqlmodel import SQLModel, create_engine, Field, Session, select
 from uuid import uuid4
 
-from wordfinder.cli import load_words
 from wordfinder import exclude_letters, filter_by_length, contains_letters, filter_by_pattern
 
 app = FastAPI()
@@ -40,12 +39,9 @@ def filter_by_pattern_endpoint(words: List[str] = Query(...), pattern: str = Que
 
 
 
-from typing import List, Optional
 
-from fastapi import FastAPI, Depends, HTTPException, Request
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI
 from fastapi.middleware.sessions import SessionMiddleware
-from sqlmodel import SQLModel, create_engine, Field, Session, select
 from uuid import uuid4
 
 app = FastAPI()

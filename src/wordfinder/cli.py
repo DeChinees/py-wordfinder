@@ -1,7 +1,11 @@
 from sqlmodel import SQLModel, Field, Session, create_engine, select, inspect, text
 from sqlalchemy.orm import declarative_base
 from sqlalchemy import Column, Integer, String
-import os, sys, re, logging, argparse
+import os
+import sys
+import re
+import logging
+import argparse
 from wordfinder import WordFilter
 
 # Configure logging
@@ -89,10 +93,10 @@ def load_words(language: str, length: int):
 def help():
     """Display the available commands and their descriptions."""
     commands = {
-        "exclude <letters>": exclude_letters.__doc__,
-        "length <number>": filter_by_length.__doc__,
-        "contains <substring>": contains_letters.__doc__,
-        "pattern <pattern>": filter_by_pattern.__doc__,
+        "exclude <letters>": WordFilter.exclude_letters.__doc__,
+        "length <number>": WordFilter.by_length.__doc__,
+        "contains <substring>": WordFilter.contains_letters.__doc__,
+        "pattern <pattern>": WordFilter.by_pattern.__doc__,
         "list": "Display the current list of words.",
         "reset": "Reset the words to the original list from the file.",
         "exit": "Exit the program."
@@ -100,12 +104,15 @@ def help():
 
     help_text = "Available commands:\n"
     for command, description in commands.items():
-        # Split the description into lines to handle multi-line docstrings
-        description_lines = description.strip().splitlines()
+        if description is not None:
+            # Split the description into lines to handle multi-line docstrings
+            description_lines = description.strip().splitlines()
 
-        help_text += f"- {command}:\n"  # Start with the command
-        for line in description_lines:
-            help_text += f"  {line.strip()}\n"  # Indent each line of the description
+            help_text += f"- {command}:\n"  # Start with the command
+            for line in description_lines:
+                help_text += f"  {line.strip()}\n"  # Indent each line of the description
+        else:
+            help_text += f"- {command}: No description available.\n"
 
     print(help_text)
 
@@ -119,7 +126,7 @@ def main():
 
     if not os.path.exists(SQLITE_FILE_NAME) and not args.filename:
         print(f"Error: Database {SQLITE_FILE_NAME} file does not exist.")
-        print(f"Database can be populated by providing command arguments --filename --language")
+        print("Database can be populated by providing command arguments --filename --language")
         sys.exit(1)
     elif args.filename:
         fill_database(args.filename, args.language)

@@ -1,2 +1,2 @@
-from .wordfinder import exclude_letters, filter_by_length, contains_letters, filter_by_pattern
+from .wordfinder import filter_by_length
 from wordfinder.cli import load_words
