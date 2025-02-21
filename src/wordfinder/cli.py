@@ -152,13 +152,7 @@ def main():
     parser.add_argument('-lang', '--language', nargs='?', default='', type=lambda s: s.lower(), help="Language of the wordlist (e.g., en, es, nl)") # We dont set a default here, because we need to handle filename in conjunction with language
     parser.add_argument('-l', '--length', nargs='?', default=5, type=int, help="The length of the words to filter")
     parser.add_argument('-list', '--list-languages', action='store_true', help="List available languages")
-    parser.add_argument('-h', '--help', action='store_true', help="Display help message")
-
     args = parser.parse_args()
-
-    if args.help: # Display help message and ignore other arguments
-        usage()
-        sys.exit(0)
 
     if not os.path.exists(SQLITE_FILE_NAME) and not args.filename:
         print(f"Error: Database {SQLITE_FILE_NAME} file does not exist.")

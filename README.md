@@ -2,6 +2,19 @@
 
 Python version of Wordfinder
 
+# Table of Contents
+
+- [py-wordfinder](#py-wordfinder)
+  - [Installation](#installation)
+  - [Usage](#usage)
+    - [Command Line Interface (CLI)](#command-line-interface-cli)
+      - [Command Line Arguments](#command-line-arguments)
+      - [Commands](#commands)
+  - [FastAPI](#fastapi)
+    - [Endpoints](#endpoints)
+    - [Example](#example)
+  - [Frontend Installation and Setup](#frontend-installation-and-setup)
+
 ## Installation
 
 1. Clone the repository:
@@ -89,9 +102,30 @@ GET /filter_by_length: Filter words by the specified length.
 GET /contains_letters: Filter words containing the specified substring.
 GET /filter_by_pattern: Filter words matching the specified pattern.
 
-###Example
+### Example
 To start the FastAPI server in development mode:
 ```sh
 poetry run fastapi dev api.py
 ```
 You can then access the API documentation at http://127.0.0.1:8000/docs. 
+
+## Frontend Installation and Setup
+
+To set up and start the frontend of the project, follow these steps:
+
+1. Navigate to the `frontend` directory:
+    ```sh
+    cd src/frontend
+    ```
+
+2. Install the required npm dependencies:
+    ```sh
+    npm install
+    ```
+
+3. Start the development server:
+    ```sh
+    npm start
+    ```
+
+This will run the app in development mode. Open [http://localhost:3000](http://localhost:3000) to view it in your browser. The page will reload when you make changes, and you may also see any lint errors in the console.
