@@ -13,19 +13,40 @@ function App() {
   const [language, setLanguage] = useState('EN');
   const [wordLength, setWordLength] = useState(5);
   const [results, setResults] = useState([]);
+  const [sessionId, setSessionId] = useState(null);
 
   const handleSearch = async () => {
     try {
-      const response = await axios.post('http://127.0.0.1:8000', {
-        included: includedLetters,
-        excluded: excludedLetters,
-        pattern: pattern,
-        language: language,
+      const response = await axios.post('http://127.0.0.1:8000/search/', {
+        lang: language,
         length: wordLength,
+        exclude: excludedLetters,
+        include: includedLetters,
+        pattern: pattern,
+      }, {
+        headers: {
+          'session-id': sessionId,
+        }
       });
-      setResults(response.data);
+      setResults(response.data.words);
+      if (!sessionId) {
+        setSessionId(response.data.session_id);
+      }
     } catch (error) {
       console.error('Error fetching data:', error);
+    }
+  };
+
+  const fetchResults = async () => {
+    try {
+      const response = await axios.post('http://127.0.0.1:8000/results/', {}, {
+        headers: {
+          'session-id': sessionId,
+        }
+      });
+      setResults(response.data.words);
+    } catch (error) {
+      console.error('Error fetching results:', error);
     }
   };
 
@@ -64,6 +85,7 @@ function App() {
       </div>
 
       <Results results={results} />
+      <button onClick={fetchResults}>Fetch Results</button>
     </div>
   );
 }

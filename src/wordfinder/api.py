@@ -16,6 +16,11 @@ app.add_middleware(SessionMiddleware, secret_key=str(uuid4()), max_age=600)
 # In-memory session storage (expires in 10 min)
 SESSION_STORE = {}
 
+# CORS settings
+origins = [
+    "http://localhost:3000",
+]
+
 def get_session(request: Request):
     session_id = request.session.get("session_id")
     if not session_id:
@@ -28,7 +33,7 @@ def get_session(request: Request):
 async def read_root():
     return {"message": "Welcome to WordFinder!"}
 
-@app.get("/search/")
+@app.post("/search/")
 async def search_words(
     request: Request,
     lang: str,
@@ -57,7 +62,6 @@ async def search_words(
     # Dynamically select table based on language
     table_name = lang.upper()
     with Session(engine) as session:
-        #query = f"SELECT word FROM {table_name}"  # Unsafe, better with SQLModel reflection
         result = session.exec(text(f"SELECT word FROM {table_name}")).all()
         words = [row[0] for row in result]
 
@@ -84,14 +88,14 @@ async def search_words(
             "count": word_filter.word_count}
 
 
-@app.get("/results/")
+@app.post("/results/")
 async def get_results(request: Request):
     session_id = get_session(request)
     if session_id in SESSION_STORE:
         return {"session_id": session_id, "words": SESSION_STORE[session_id]["words"]}
     return {"message": "No active session."}
 
-@app.get("/reset/")
+@app.post("/reset/")
 async def reset_session(request: Request):
     session_id = get_session(request)
     SESSION_STORE[session_id] = {"created": time.time(), "words": []}
