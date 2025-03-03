@@ -85,7 +85,7 @@ function App() {
       </div>
 
       <Results results={results} />
-      <button onClick={fetchResults}>Fetch Results</button>
+      {/* <button onClick={fetchResults}>Fetch Results</button> */}
     </div>
   );
 }
